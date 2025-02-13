@@ -4,12 +4,25 @@ describe('SiteScraper', () => {
   let scraper;
   
   beforeEach(() => {
-    // Mock environment
+    // Mock window and SCRAPER_CONFIG
+    global.window = {
+      SCRAPER_CONFIG: {
+        version: '1.0.4',
+        features: {
+          rateLimit: true,
+          memoryManagement: true,
+          assetCaching: true
+        }
+      }
+    };
+
+    // Mock chrome API
     global.chrome = {
       runtime: {
         getManifest: () => ({ version: '1.0.0' }),
         getURL: (path) => `chrome-extension://id/${path}`,
-        lastError: null
+        lastError: null,
+        sendMessage: jest.fn()
       },
       tabs: {
         create: jest.fn(),
@@ -24,9 +37,12 @@ describe('SiteScraper', () => {
       },
       downloads: {
         download: jest.fn()
+      },
+      management: {
+        getSelf: jest.fn(cb => cb({ installType: 'development' }))
       }
     };
-    
+
     scraper = new SiteScraper('https://example.com');
   });
 
@@ -169,7 +185,9 @@ describe('SiteScraper', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    scraper.cleanup();
+    if (scraper && scraper.cleanup) {
+      scraper.cleanup();
+    }
   });
 });
 

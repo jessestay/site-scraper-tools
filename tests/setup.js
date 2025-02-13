@@ -1,3 +1,15 @@
+// Mock window and SCRAPER_CONFIG globally
+global.window = {
+  SCRAPER_CONFIG: {
+    version: '1.0.4',
+    features: {
+      rateLimit: true,
+      memoryManagement: true,
+      assetCaching: true
+    }
+  }
+};
+
 // Mock chrome API
 global.chrome = {
   runtime: {
@@ -6,7 +18,8 @@ global.chrome = {
     },
     onSuspend: {
       addListener: jest.fn()
-    }
+    },
+    sendMessage: jest.fn()
   },
   downloads: {
     download: jest.fn(),
