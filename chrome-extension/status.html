@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Site Scraper Status</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+      line-height: 1.6;
+    }
+    
+    #status {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    #status-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .stat-box {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 6px;
+      border-left: 4px solid #4caf50;
+    }
+
+    .stat-label {
+      font-size: 0.9em;
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .stat-value {
+      font-size: 1.2em;
+      font-weight: 600;
+    }
+    
+    #log {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      height: 500px;
+      overflow-y: auto;
+    }
+    
+    .log-entry {
+      margin: 8px 0;
+      padding: 8px 12px;
+      border-left: 4px solid #ddd;
+      background: #f8f9fa;
+      border-radius: 0 4px 4px 0;
+    }
+    
+    .error { 
+      border-left-color: #f44336;
+      background: #fff5f5;
+    }
+    .warning { 
+      border-left-color: #ff9800;
+      background: #fff8f0;
+    }
+    .success { 
+      border-left-color: #4caf50;
+      background: #f5fff5;
+    }
+    
+    .timestamp {
+      color: #666;
+      font-size: 0.9em;
+      margin-right: 8px;
+    }
+
+    .message {
+      word-break: break-word;
+    }
+
+    .status-badge {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      font-weight: 500;
+    }
+
+    .status-running {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+
+    .status-complete {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .status-error {
+      background: #fde7e7;
+      color: #d32f2f;
+    }
+
+    .controls {
+      margin: 20px 0;
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      background: #1976d2;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #1565c0;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    #download-section {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e8f5e9;
+      border-radius: 8px;
+      display: none;
+    }
+
+    #download-section.visible {
+      display: block;
+    }
+
+    .download-list {
+      margin-top: 10px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .download-item {
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .filter-section {
+      margin: 15px 0;
+      display: flex;
+      gap: 10px;
+    }
+
+    .filter-button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      background: #f0f0f0;
+      cursor: pointer;
+      font-size: 0.9em;
+      color: #333;
+      transition: all 0.2s ease;
+    }
+
+    .filter-button:hover {
+      background: #2196f3;
+      color: white;
+    }
+
+    .filter-button.active {
+      background: #2196f3;
+      color: white;
+    }
+
+    .filter-button:not(.active) {
+      border: 1px solid #ddd;
+    }
+
+    .action-controls {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+
+    .current-url {
+      flex-grow: 1;
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 6px;
+      border-left: 4px solid #2196f3;
+    }
+
+    .url-label {
+      font-size: 0.9em;
+      color: #666;
+      margin-bottom: 4px;
+    }
+
+    .url-value {
+      font-weight: 500;
+      word-break: break-all;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    button.primary {
+      background: #2196f3;
+    }
+
+    button.danger {
+      background: #f44336;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .url-input-help {
+      font-size: 0.9em;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .url-input.busy {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .url-input.busy::after {
+      content: "Scraping in progress...";
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.9em;
+      color: #1976d2;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">
+    <div id="status-header">
+      <h2>Site Scraper Status</h2>
+      <span id="status-badge" class="status-badge status-running">Running...</span>
+    </div>
+    
+    <div class="action-controls">
+      <div class="current-url">
+        <div class="url-label">Currently Scraping:</div>
+        <div id="currentUrl" class="url-value"></div>
+      </div>
+      <div class="buttons">
+        <button id="stop-scraping" class="danger">Stop</button>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-label">Pages Queued</div>
+        <div id="queued" class="stat-value">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Pages Processed</div>
+        <div id="processed" class="stat-value">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Assets Found</div>
+        <div id="assets" class="stat-value">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Status</div>
+        <div id="currentStatus" class="stat-value">Initializing...</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="clear-log">Clear Log</button>
+      <button id="export-log">Export Log</button>
+      <button id="toggle-filters">Show Filters</button>
+    </div>
+
+    <div class="filter-section" style="display: none;">
+      <button class="filter-button active" data-type="all">All</button>
+      <button class="filter-button" data-type="error">Errors</button>
+      <button class="filter-button" data-type="warning">Warnings</button>
+      <button class="filter-button" data-type="success">Success</button>
+    </div>
+  </div>
+  
+  <div id="download-section">
+    <h3>Downloads</h3>
+    <p>Your site archive is ready! Click the links below to download each part:</p>
+    <div class="download-list"></div>
+  </div>
+
+  <div id="log"></div>
+  
+  <script src="status.js" defer></script>
+</body>
+</html> 

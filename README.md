@@ -1,103 +1,45 @@
 # Site Scraper Tools
 
-A comprehensive toolkit for scraping and archiving websites, providing both a Chrome extension and a Python command-line tool. This project aims to help users create local copies of websites while preserving the original structure and assets.
+A powerful web scraping tool for Chrome.
 
 ## Features
 
-### Chrome Extension
-- 🌐 Scrape entire websites while preserving directory structure
-- 📥 Download all assets (images, CSS, JS, fonts)
-- 🗂️ Create organized ZIP archives of sites
-- ⚡ Handle JavaScript-rendered content
-- 📊 Real-time progress tracking
-- ⏹️ Pause/Stop functionality
-- 🔄 Automatic retry mechanism
-- 🧹 Clean up resources automatically
+### Free Version
+- Basic web scraping
+- Simple asset downloading
+- Standard compression
+- Up to 3 concurrent downloads
 
-### Python Script
-- 🔄 Recursive website crawling
-- 🔒 Advanced SSL/TLS handling
-- 📁 Maintains directory structure
-- 🚀 Configurable delay between requests
-- 💾 Asset downloading
-- 🔍 Smart URL filtering
+### Premium Version
+- Advanced selectors
+- High-performance compression
+- Unlimited concurrent downloads
+- Priority support
+- Custom configurations
 
-## Installation & Usage
+## Premium Features
+- Advanced asset detection
+- Framework-specific scraping (React, Vue, Angular)
+- Web font detection
+- Dynamic content handling
+- High-performance compression
+- Unlimited concurrent downloads
+- Priority support
 
-## Installation
+[Get Premium Access](https://your-domain.com/premium)
 
-### Chrome Extension
-1. Clone this repository:
-```bash
-git clone https://github.com/yourusername/site-scraper-tools.git
-```
+## Getting Started
 
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" in the top right
-4. Click "Load unpacked" and select the `chrome-extension` directory
+### Free Version
+1. Clone this repository
+2. Install dependencies
+3. Load the extension in Chrome
 
-### Python Script
-1. Install required packages:
-```bash
-pip install requests beautifulsoup4
-```
-
-2. Navigate to the python-scraper directory:
-```bash
-cd site-scraper-tools/python-scraper
-```
-
-## Usage
-
-### Chrome Extension
-1. Click the extension icon on any webpage
-2. Click "Scrape Current Site"
-3. Monitor progress in the popup
-4. Choose save location for the ZIP file when complete
-
-Options:
-- Stop scraping at any time with the "Stop" button
-- Progress is shown in real-time
-- Assets are automatically detected and downloaded
-
-### Python Script
-Basic usage:
-```bash
-python sitescraper.py https://example.com
-```
-
-With options:
-```bash
-python sitescraper.py https://example.com --output custom_dir --delay 2.0
-```
-
-Options:
-- `--output`, `-o`: Output directory (default: site_output)
-- `--delay`, `-d`: Delay between requests in seconds (default: 1.0)
-
-## Technical Details
-
-### Chrome Extension
-- Uses modern Chrome Extension Manifest V3
-- Handles JavaScript-rendered content
-- Manages browser resources efficiently
-- Provides real-time progress updates
-- Creates organized ZIP archives
-
-### Python Script
-- Handles SSL certificate issues
-- Respects rate limiting
-- Manages memory efficiently
-- Provides detailed progress output
-- Creates clean directory structure
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+### Premium Version
+For premium features and support, visit [your-domain.com/upgrade](https://your-domain.com/upgrade)
 
 ## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under MIT with Commons Clause - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
@@ -108,3 +50,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Security Note
 
 Please ensure you have permission to scrape any website you target. Some websites explicitly forbid scraping in their terms of service or robots.txt file.
+
+## Installation
+...
