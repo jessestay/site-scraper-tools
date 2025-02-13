@@ -2,5 +2,20 @@
   "name": "site-scraper-tools",
   "version": "1.0.0",
   "main": "chrome-extension/scraper.js",
-  "type": "module"
+  "type": "module",
+  "description": "A powerful web scraping tool for Chrome.",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jessestay/site-scraper-tools.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jessestay/site-scraper-tools/issues"
+  },
+  "homepage": "https://github.com/jessestay/site-scraper-tools#readme"
 }

@@ -142,8 +142,8 @@ class SiteScraper {
   async prepareDownloads() {
     console.log('Creating downloads...');
     if (this.cache.size === 0) {
-      throw new Error('No files found in cache');
-    }
+        throw new Error('No files found in cache');
+      }
 
     const downloads = [];
     for (const [path, { content, contentType }] of this.cache.entries()) {
