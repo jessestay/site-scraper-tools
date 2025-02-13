@@ -28,12 +28,11 @@ class PopupUI {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const baseUrl = new URL(tab.url).origin;
       
-      // Inject required scripts
-      await this.injectScripts(tab.id);
-      
-      const response = await this.sendMessage(tab.id, {
-        action: 'scrape',
-        baseUrl: baseUrl
+      // Execute in background script context instead
+      const response = await chrome.runtime.sendMessage({
+        action: 'startScraping',
+        baseUrl: baseUrl,
+        sourceTabId: tab.id
       });
       
       if (response?.success) {
@@ -50,40 +49,14 @@ class PopupUI {
   }
 
   async stopScraping() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    await chrome.tabs.sendMessage(tab.id, { action: 'stop' });
+    await chrome.runtime.sendMessage({ action: 'stopScraping' });
     this.status.textContent = 'Scraping stopped.';
     this.stopButton.classList.add('hidden');
     this.scrapeButton.classList.remove('hidden');
   }
 
-  async injectScripts(tabId) {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['jszip.min.js']
-    });
-    
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['scraper.js']
-    });
-  }
-
-  async sendMessage(tabId, message) {
-    return new Promise((resolve, reject) => {
-      chrome.tabs.sendMessage(tabId, message, response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(response);
-        }
-      });
-    });
-  }
-
   updateProgress({ message, queued, processed }) {
     this.progress.textContent = message;
-    // Optional: Add progress bar or other visual indicators
   }
 }
 

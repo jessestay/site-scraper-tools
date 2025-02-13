@@ -1,6 +1,15 @@
 class SiteScraper {
   constructor(baseUrl) {
-    this.baseUrl = new URL(baseUrl).origin;
+    if (!baseUrl) {
+      throw new Error('Base URL is required');
+    }
+    
+    try {
+      this.baseUrl = new URL(baseUrl).origin;
+    } catch (error) {
+      throw new Error('Invalid base URL provided');
+    }
+    
     this.visited = new Set();
     this.toVisit = new Set();
     this.assets = new Set();
@@ -10,6 +19,17 @@ class SiteScraper {
     this.openTabs = new Set();
     this.objectUrls = new Set();
     this.timeouts = new Set();
+    this.selectors = {
+      'img[src]': 'src',
+      'script[src]': 'src',
+      'link[rel="stylesheet"]': 'href',
+      'link[rel="icon"]': 'href',
+      'video[src]': 'src',
+      'audio[src]': 'src',
+      'source[src]': 'src',
+      'iframe[src]': 'src'
+    };
+    this.cleanupHandlers = new Set();
   }
 
   normalizeUrl(url) {
@@ -22,38 +42,57 @@ class SiteScraper {
     }
   }
 
+  registerCleanup(handler) {
+    this.cleanupHandlers.add(handler);
+  }
+
   async cleanup() {
-    // Clean up tabs
-    for (const tabId of this.openTabs) {
-      try {
-        await chrome.tabs.remove(tabId);
-      } catch (e) {
-        console.error('Error closing tab:', e);
+    try {
+      // Run all cleanup handlers
+      await Promise.all(Array.from(this.cleanupHandlers).map(handler => handler()));
+      
+      // Clean up tabs
+      for (const tabId of this.openTabs) {
+        try {
+          await chrome.tabs.remove(tabId);
+        } catch (e) {
+          console.error('Error closing tab:', e);
+        }
       }
+      
+      // Clean up object URLs
+      for (const url of this.objectUrls) {
+        URL.revokeObjectURL(url);
+      }
+      
+      // Clear timeouts
+      for (const timeout of this.timeouts) {
+        clearTimeout(timeout);
+      }
+      
+      this.openTabs.clear();
+      this.objectUrls.clear();
+      this.timeouts.clear();
+      this.cleanupHandlers.clear();
+    } catch (error) {
+      console.error('Cleanup error:', error);
     }
-    
-    // Clean up object URLs
-    for (const url of this.objectUrls) {
-      URL.revokeObjectURL(url);
-    }
-    
-    // Clear timeouts
-    for (const timeout of this.timeouts) {
-      clearTimeout(timeout);
-    }
-    
-    this.openTabs.clear();
-    this.objectUrls.clear();
-    this.timeouts.clear();
   }
 
   updateProgress(message) {
-    chrome.runtime.sendMessage({
+    const progress = {
       action: 'progress',
-      message: `${message}\nQueued: ${this.toVisit.size}, Processed: ${this.processedUrls.size}`,
+      message,
       queued: this.toVisit.size,
-      processed: this.processedUrls.size
-    }).catch(error => console.error('Progress update failed:', error));
+      processed: this.processedUrls.size,
+      assets: this.assets.size,
+      totalAssets: this.assets.size + this.toVisit.size,
+      status: this.isRunning ? 'running' : 'stopped'
+    };
+    
+    chrome.runtime.sendMessage(progress).catch(error => 
+      console.error('Progress update failed:', error)
+    );
   }
 
   async waitForPageLoad(tabId) {
@@ -89,12 +128,14 @@ class SiteScraper {
   }
 
   async scrape() {
-    let currentTabId = null;
     try {
-      const currentUrl = window.location.href;
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      // Add initial URL
+      const currentUrl = this.baseUrl;
       this.toVisit.add(this.normalizeUrl(currentUrl));
-      window.currentScraper = this;
-
+      
       while (this.toVisit.size > 0 && this.isRunning) {
         const url = Array.from(this.toVisit)[0];
         this.toVisit.delete(url);
@@ -102,42 +143,14 @@ class SiteScraper {
         if (this.processedUrls.has(url)) continue;
         
         try {
-          this.updateProgress(`Fetching: ${url}`);
-          currentTabId = await this.createTab(url);
-          await this.waitForPageLoad(currentTabId);
-          
-          const result = await chrome.scripting.executeScript({
-            target: { tabId: currentTabId },
-            func: () => ({
-              html: document.documentElement.outerHTML,
-              title: document.title
-            })
-          });
-          
-          const { html, title } = result[0].result;
-          this.htmlContent.set(url, {
-            content: html,
-            title: title
-          });
-          this.processedUrls.add(url);
-          
-          const doc = new DOMParser().parseFromString(html, 'text/html');
-          await this.findAssets(doc, url);
-          await this.findAndQueueLinks(doc, url);
-          
-          await chrome.tabs.remove(currentTabId);
-          this.openTabs.delete(currentTabId);
-          currentTabId = null;
-          
-          await new Promise(resolve => {
-            const timeout = setTimeout(resolve, 500);
-            this.timeouts.add(timeout);
-          });
+          await this.processUrl(url);
+          retryCount = 0; // Reset retry count on success
         } catch (error) {
           console.error(`Error processing ${url}:`, error);
-          if (currentTabId) {
-            await chrome.tabs.remove(currentTabId).catch(console.error);
-            this.openTabs.delete(currentTabId);
+          if (retryCount < maxRetries) {
+            retryCount++;
+            this.toVisit.add(url); // Re-queue for retry
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
           }
         }
       }
@@ -151,48 +164,49 @@ class SiteScraper {
     }
   }
 
-  async findAssets(doc, baseUrl) {
-    // Standard assets
-    const selectors = {
-      'img[src]': 'src',
-      'script[src]': 'src',
-      'link[rel="stylesheet"]': 'href',
-      'link[rel="icon"]': 'href',
-      'video[src]': 'src',
-      'audio[src]': 'src',
-      'source[src]': 'src',
-      'iframe[src]': 'src'
-    };
-
-    for (const [selector, attr] of Object.entries(selectors)) {
-      doc.querySelectorAll(selector).forEach(el => {
-        const url = el.getAttribute(attr);
-        if (url) {
-          const fullUrl = this.normalizeUrl(url);
-          if (fullUrl?.startsWith(this.baseUrl)) {
-            this.assets.add(fullUrl);
+  async findAssets(doc, baseUrl, currentTabId) {
+    try {
+      // Execute in the tab context instead
+      const result = await chrome.scripting.executeScript({
+        target: { tabId: currentTabId },
+        func: (selectors) => {
+          const assets = new Set();
+          // Process standard assets
+          for (const [selector, attr] of Object.entries(selectors)) {
+            document.querySelectorAll(selector).forEach(el => {
+              const url = el.getAttribute(attr);
+              if (url) assets.add(url);
+            });
           }
-        }
-      });
-    }
-
-    // CSS background images
-    doc.querySelectorAll('*').forEach(el => {
-      const style = window.getComputedStyle(el);
-      const backgroundImage = style.backgroundImage;
-      if (backgroundImage && backgroundImage !== 'none') {
-        const matches = backgroundImage.match(/url\(['"]?([^'"]+)['"]?\)/g);
-        if (matches) {
-          matches.forEach(match => {
-            const url = match.replace(/url\(['"]?([^'"]+)['"]?\)/, '$1');
-            const fullUrl = this.normalizeUrl(url);
-            if (fullUrl?.startsWith(this.baseUrl)) {
-              this.assets.add(fullUrl);
+          // Process background images
+          document.querySelectorAll('*').forEach(el => {
+            const style = window.getComputedStyle(el);
+            const backgroundImage = style.backgroundImage;
+            if (backgroundImage && backgroundImage !== 'none') {
+              const matches = backgroundImage.match(/url\(['"]?([^'"]+)['"]?\)/g);
+              if (matches) {
+                matches.forEach(match => {
+                  const url = match.replace(/url\(['"]?([^'"]+)['"]?\)/, '$1');
+                  assets.add(url);
+                });
+              }
             }
           });
+          return Array.from(assets);
+        },
+        args: [this.selectors]
+      });
+
+      const urls = result[0].result;
+      urls.forEach(url => {
+        const fullUrl = this.normalizeUrl(url);
+        if (fullUrl?.startsWith(this.baseUrl)) {
+          this.assets.add(fullUrl);
         }
-      }
-    });
+      });
+    } catch (error) {
+      console.error('Error finding assets:', error);
+    }
   }
 
   async findAndQueueLinks(doc, currentUrl) {
@@ -241,54 +255,101 @@ class SiteScraper {
 
   async downloadAll() {
     const zip = new JSZip();
+    let downloadUrl = null;
     
-    // Add HTML files
-    for (const [url, { content, title }] of this.htmlContent) {
-      const path = this.urlToPath(url);
-      this.updateProgress(`Adding HTML: ${path}`);
-      zip.file(path, content);
-    }
-    
-    // Download and add assets
-    let processedAssets = 0;
-    const totalAssets = this.assets.size;
-    
-    for (const url of this.assets) {
-      try {
-        processedAssets++;
-        this.updateProgress(`Processing asset ${processedAssets}/${totalAssets}: ${url}`);
-        const response = await fetch(url);
-        const blob = await response.blob();
+    try {
+      // Add HTML files
+      for (const [url, { content, title }] of this.htmlContent) {
         const path = this.urlToPath(url);
-        zip.file(path, blob);
-      } catch (error) {
-        console.error(`Error downloading asset ${url}:`, error);
+        this.updateProgress(`Adding HTML: ${path}`);
+        zip.file(path, content);
+      }
+      
+      // Download and add assets
+      let processedAssets = 0;
+      const totalAssets = this.assets.size;
+      
+      for (const url of this.assets) {
+        try {
+          processedAssets++;
+          this.updateProgress(`Processing asset ${processedAssets}/${totalAssets}: ${url}`);
+          const response = await fetch(url);
+          const blob = await response.blob();
+          const path = this.urlToPath(url);
+          zip.file(path, blob);
+        } catch (error) {
+          console.error(`Error downloading asset ${url}:`, error);
+        }
+      }
+      
+      this.updateProgress('Generating zip file...');
+      const content = await zip.generateAsync({type: 'blob'});
+      downloadUrl = URL.createObjectURL(content);
+      this.objectUrls.add(downloadUrl);  // Track for cleanup
+      
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: 'download',
+          url: downloadUrl,
+          filename: 'site-archive.zip'
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      });
+    } finally {
+      if (downloadUrl) {
+        URL.revokeObjectURL(downloadUrl);
+        this.objectUrls.delete(downloadUrl);
       }
     }
-    
-    this.updateProgress('Generating zip file...');
-    const content = await zip.generateAsync({type: 'blob'});
-    const downloadUrl = URL.createObjectURL(content);
-    
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({
-        action: 'download',
-        url: downloadUrl,
-        filename: 'site-archive.zip'
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          URL.revokeObjectURL(downloadUrl);
-          resolve(response);
-        }
-      });
-    });
   }
 
   stop() {
     this.isRunning = false;
     this.cleanup().catch(console.error);
+  }
+
+  async processUrl(url) {
+    let currentTabId = null;
+    try {
+      this.updateProgress(`Fetching: ${url}`);
+      currentTabId = await this.createTab(url);
+      await this.waitForPageLoad(currentTabId);
+      
+      const result = await chrome.scripting.executeScript({
+        target: { tabId: currentTabId },
+        func: () => ({
+          html: document.documentElement.outerHTML,
+          title: document.title
+        })
+      });
+      
+      const { html, title } = result[0].result;
+      this.htmlContent.set(url, {
+        content: html,
+        title: title
+      });
+      this.processedUrls.add(url);
+      
+      // Parse HTML in the context where DOMParser is available
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      await this.findAssets(doc, url, currentTabId);
+      await this.findAndQueueLinks(doc, url);
+    } finally {
+      if (currentTabId) {
+        await chrome.tabs.remove(currentTabId).catch(console.error);
+        this.openTabs.delete(currentTabId);
+      }
+      await new Promise(resolve => {
+        const timeout = setTimeout(resolve, 500);
+        this.timeouts.add(timeout);
+      });
+    }
   }
 }
 
@@ -316,8 +377,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true;
   } else if (request.action === 'stop') {
-    if (window.currentScraper) {
-      window.currentScraper.stop();
+    if (self.currentScraper) {
+      self.currentScraper.stop();
       isScrapingInProgress = false;
     }
   }
