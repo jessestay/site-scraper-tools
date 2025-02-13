@@ -1,45 +1,114 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WordPress Migration Assistant</title>
   <style>
+    /* Modern, clean UI styles */
+    :root {
+      --primary: #2563eb;
+      --success: #16a34a;
+      --warning: #ca8a04;
+      --background: #f8fafc;
+      --card: #ffffff;
+    }
+
     body {
-      width: 300px;
-      padding: 10px;
+      width: 400px;
+      padding: 1rem;
+      background: var(--background);
       font-family: system-ui, -apple-system, sans-serif;
     }
-    button {
-      margin: 5px;
+
+    .mode-btn {
       width: 100%;
-      padding: 8px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      background: #f0f0f0;
+      padding: 1rem;
+      margin: 0.5rem 0;
+      text-align: left;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      background: var(--card);
       cursor: pointer;
+      transition: all 0.2s;
     }
-    button:hover {
-      background: #e0e0e0;
+
+    .mode-btn:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
     }
-    #status {
-      margin-top: 10px;
-      color: #666;
+
+    .progress-steps {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
     }
-    #progress {
-      margin-top: 5px;
-      font-size: 0.9em;
-      white-space: pre-wrap;
-      word-break: break-word;
+
+    .step {
+      padding: 0.5rem 1rem;
+      border-radius: 1rem;
+      background: #e2e8f0;
+      font-size: 0.875rem;
     }
-    .hidden {
-      display: none;
+
+    .step.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .card {
+      background: var(--card);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .ai-status {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 1rem;
+    }
+
+    .ai-status.ready {
+      background: var(--success);
+      color: white;
+    }
+
+    .ai-status.warning {
+      background: var(--warning);
+      color: white;
+    }
+
+    .feature-card {
+      background: var(--card);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      text-align: center;
+      margin: 0.5rem 0;
+    }
+
+    .icon {
+      font-size: 2rem;
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid var(--background);
+      border-top: 3px solid var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
-  <button id="scrapeButton">Scrape Current Site</button>
-  <button id="stopButton" class="hidden">Stop Scraping</button>
-  <div id="status"></div>
-  <div id="progress"></div>
+  <div id="app"></div>
+  <script src="onnxruntime-web.min.js"></script>
   <script src="popup.js"></script>
 </body>
 </html> 

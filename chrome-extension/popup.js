@@ -1,104 +1,314 @@
-document.addEventListener('DOMContentLoaded', () => {
-  class PopupUI {
-    constructor() {
-      this.status = document.getElementById('status');
-      this.progress = document.getElementById('progress');
-      this.scrapeButton = document.getElementById('scrapeButton');
-      this.stopButton = document.getElementById('stopButton');
-      this.urlInput = document.getElementById('url');
-      this.startButton = document.getElementById('start');
-      this.setupEventListeners();
+const UI = {
+  constructor() {
+    this.scrapeState = {
+      lastUrl: null,
+      processedUrls: new Set(),
+      timestamp: null
+    };
+  },
+
+  async init() {
+    this.renderMainMenu();
+    this.isPremium = await this.checkPremiumStatus();
+  },
+
+  async renderMainMenu() {
+    document.getElementById('app').innerHTML = `
+      <div class="menu-container">
+        <h2>Site Migration Assistant</h2>
+        
+        <div class="mode-selector">
+          <button id="basic-export" class="mode-btn">
+            <h3>Basic Export</h3>
+            <p>Download site files & assets</p>
+            <span class="badge free">Free</span>
+          </button>
+
+          <button id="wordpress-export" class="mode-btn premium ${this.isPremium ? '' : 'locked'}">
+            <h3>WordPress Export</h3>
+            <p>AI-powered WordPress conversion</p>
+            <span class="badge premium">Premium</span>
+            ${!this.isPremium ? '<div class="lock-overlay">🔒</div>' : ''}
+          </button>
+        </div>
+
+        <div class="progress-container" style="display: none">
+          <div class="progress-step">
+            <div class="step-label">Analyzing Structure</div>
+            <div class="progress-bar">
+              <div class="progress" id="structure-progress"></div>
+            </div>
+          </div>
+          <div class="progress-step">
+            <div class="step-label">Extracting Content</div>
+            <div class="progress-bar">
+              <div class="progress" id="content-progress"></div>
+            </div>
+          </div>
+          <div class="progress-step">
+            <div class="step-label">Processing Media</div>
+            <div class="progress-bar">
+              <div class="progress" id="media-progress"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this.attachEventListeners();
+  },
+
+  async startWordPressExport() {
+    if (!this.isPremium) {
+      this.showPremiumDialog();
+      return;
     }
 
-    setupEventListeners() {
-      if (this.startButton) {
-        this.startButton.addEventListener('click', () => {
-          const url = this.urlInput?.value.trim();
-          if (!url) return;
+    const progressContainer = document.querySelector('.progress-container');
+    progressContainer.style.display = 'block';
 
-          try {
-            // Validate URL format
-            new URL(url);
-            
-            chrome.tabs.create({
-              url: chrome.runtime.getURL('status.html'),
-              active: true
-            }, tab => {
-              // Store URL in local storage for status page to read
-              chrome.storage.local.set({ 
-                'pendingUrl': url 
-              }, () => {
-                if (chrome.runtime.lastError) {
-                  console.error('Error saving URL:', chrome.runtime.lastError);
-                }
-              });
-            });
-            
-            window.close();
-          } catch (e) {
-            console.error('Invalid URL:', e);
-            this.status.textContent = 'Please enter a valid URL';
-          }
-        });
-      }
+    // Use lightweight model for your hardware
+    const ai = new LiteAI({
+      modelSize: 'tiny', // ~100MB model
+      maxBatchSize: 512, // Limit memory usage
+      useQuantization: true // 8-bit quantization for speed
+    });
 
-      if (this.scrapeButton) {
-        this.scrapeButton.addEventListener('click', () => this.startScraping());
-      }
-      
-      if (this.stopButton) {
-        this.stopButton.addEventListener('click', () => this.stopScraping());
-      }
-      
-      // Listen for progress updates
-      chrome.runtime.onMessage.addListener((request) => {
-        if (request.action === 'progress') {
-          this.updateProgress(request);
-        }
+    try {
+      // Structure Analysis (30%)
+      await this.updateProgress('structure', async (progress) => {
+        const structure = await ai.analyzeStructure(document, progress);
+        return structure;
       });
-    }
 
-    async startScraping() {
-      this.status.textContent = 'Scraping...';
-      this.scrapeButton.classList.add('hidden');
-      this.stopButton.classList.remove('hidden');
-      
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const baseUrl = new URL(tab.url).origin;
+      // Content Extraction (40%)
+      await this.updateProgress('content', async (progress) => {
+        const content = await ai.extractContent(document, progress);
+        return content;
+      });
+
+      // Media Processing (30%)
+      await this.updateProgress('media', async (progress) => {
+        const media = await ai.processMedia(document, progress);
+        return media;
+      });
+
+      this.showExportOptions();
+    } catch (err) {
+      this.showError('Export failed', err);
+    }
+  },
+
+  async updateProgress(type, operation) {
+    const progressBar = document.getElementById(`${type}-progress`);
+    let progress = 0;
+
+    const updateUI = (percent) => {
+      progress = Math.min(100, percent);
+      progressBar.style.width = `${progress}%`;
+    };
+
+    return await operation((percent) => {
+      updateUI(percent);
+    });
+  },
+
+  async renderProgressUI() {
+    document.getElementById('app').innerHTML = `
+      <div class="progress-dashboard">
+        <h3>Site Migration Progress</h3>
         
-        // Execute in background script context instead
-        const response = await chrome.runtime.sendMessage({
-          action: 'startScraping',
-          baseUrl: baseUrl,
-          sourceTabId: tab.id
-        });
-        
-        if (response?.success) {
-          this.status.textContent = 'Scraping complete!';
-        } else {
-          this.status.textContent = `Error: ${response?.error || 'Unknown error'}`;
-        }
-      } catch (error) {
-        this.status.textContent = `Error: ${error.message}`;
-      } finally {
-        this.stopButton.classList.add('hidden');
-        this.scrapeButton.classList.remove('hidden');
+        <div class="overall-progress">
+          <div class="progress-label">
+            <span>Overall Progress</span>
+            <span class="percentage" id="total-progress">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress" id="total-progress-bar"></div>
+          </div>
+        </div>
+
+        <div class="detailed-progress">
+          <div class="progress-phase ${this.currentPhase === 'discovery' ? 'active' : ''}">
+            <div class="phase-header">
+              <span class="phase-icon">🔍</span>
+              <span class="phase-title">Site Discovery</span>
+              <span class="phase-status" id="discovery-status">Pending...</span>
+            </div>
+            <div class="phase-details" id="discovery-details">
+              <div class="detail-item">Pages Found: <span id="pages-count">0</span></div>
+              <div class="detail-item">Media Files: <span id="media-count">0</span></div>
+            </div>
+          </div>
+
+          <div class="progress-phase ${this.currentPhase === 'scraping' ? 'active' : ''}">
+            <div class="phase-header">
+              <span class="phase-icon">📥</span>
+              <span class="phase-title">Content Scraping</span>
+              <span class="phase-status" id="scraping-status">Waiting...</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress" id="scraping-progress"></div>
+            </div>
+            <div class="current-action" id="current-page">
+              <!-- Currently processing page shown here -->
+            </div>
+          </div>
+
+          ${this.isPremium ? `
+            <div class="progress-phase ${this.currentPhase === 'wordpress' ? 'active' : ''}">
+              <div class="phase-header">
+                <span class="phase-icon">🔄</span>
+                <span class="phase-title">WordPress Conversion</span>
+                <span class="phase-status" id="wp-status">Waiting...</span>
+              </div>
+              <div class="phase-details" id="wp-details">
+                <div class="detail-item">Templates: <span id="template-count">0</span></div>
+                <div class="detail-item">Posts: <span id="post-count">0</span></div>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+
+        <div class="action-buttons">
+          <button id="pause-btn" class="secondary">Pause</button>
+          <button id="cancel-btn" class="danger">Cancel</button>
+        </div>
+      </div>
+    `;
+  },
+
+  async startScraping() {
+    try {
+      // Save state periodically
+      setInterval(() => this.saveState(), 30000);
+
+      if (await this.hasExistingState()) {
+        await this.showResumeDialog();
       }
+
+      // ... rest of scraping logic
+    } catch (error) {
+      await this.saveState();
+      this.showRecoveryDialog(error);
+    }
+  },
+
+  showRecoveryDialog(error) {
+    document.getElementById('app').innerHTML += `
+      <div class="error-dialog">
+        <h3>⚠️ Encountered an Issue</h3>
+        <p>${error.message}</p>
+        <div class="actions">
+          <button onclick="UI.resumeScraping()">Resume</button>
+          <button onclick="UI.restartScraping()">Start Over</button>
+        </div>
+      </div>
+    `;
+  },
+
+  updateProgress(data) {
+    const { pagesProcessed, pagesTotal, currentUrl, phase } = data;
+    
+    // Update overall progress
+    const totalProgress = document.getElementById('total-progress');
+    const percentage = Math.round((pagesProcessed / pagesTotal) * 100);
+    totalProgress.textContent = `${percentage}%`;
+    
+    // Update current action with truncated URL
+    const currentAction = document.getElementById('current-page');
+    const displayUrl = new URL(currentUrl).pathname;
+    currentAction.textContent = `Processing: ${displayUrl.length > 40 ? 
+      displayUrl.substring(0, 37) + '...' : displayUrl}`;
+    
+    // Update phase status
+    const phaseStatus = document.getElementById(`${phase}-status`);
+    if (phaseStatus) {
+      phaseStatus.textContent = `${pagesProcessed}/${pagesTotal}`;
     }
 
-    async stopScraping() {
-      await chrome.runtime.sendMessage({ action: 'stopScraping' });
-      this.status.textContent = 'Scraping stopped.';
-      this.stopButton.classList.add('hidden');
-      this.scrapeButton.classList.remove('hidden');
-    }
+    // Show estimated time remaining
+    this.updateTimeEstimate(pagesProcessed, pagesTotal);
+  },
 
-    updateProgress({ message, queued, processed }) {
-      this.progress.textContent = message;
-    }
+  updateTimeEstimate(processed, total) {
+    if (!this.startTime) this.startTime = Date.now();
+    
+    const elapsed = (Date.now() - this.startTime) / 1000;
+    const avgTimePerPage = elapsed / processed;
+    const remaining = (total - processed) * avgTimePerPage;
+    
+    const timeDisplay = document.getElementById('time-estimate');
+    timeDisplay.textContent = `Est. ${this.formatTime(remaining)} remaining`;
+  },
+
+  async renderPremiumActivation() {
+    document.getElementById('app').innerHTML = `
+      <div class="premium-activation">
+        <h3>Activate Premium Features</h3>
+        
+        <div class="key-input">
+          <input type="text" 
+                 id="premium-key" 
+                 placeholder="Enter your premium key"
+                 pattern="SST-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}"
+                 maxlength="23"
+                 autocomplete="off"
+                 spellcheck="false">
+          <button id="activate-btn" class="primary">Activate</button>
+        </div>
+
+        <div class="key-format">
+          Format: SST-XXXXX-XXXXX-XXXXX
+        </div>
+
+        <div id="activation-message" class="message" style="display: none;">
+        </div>
+
+        <div class="premium-features">
+          <h4>Premium Features Include:</h4>
+          <ul>
+            <li>🔄 WordPress Conversion</li>
+            <li>🎨 Template Extraction</li>
+            <li>🤖 AI-Powered Content Analysis</li>
+            <li>📱 Responsive Design Detection</li>
+          </ul>
+        </div>
+      </div>
+    `;
+
+    this.attachPremiumListeners();
+  },
+
+  async attachPremiumListeners() {
+    const input = document.getElementById('premium-key');
+    const button = document.getElementById('activate-btn');
+    const message = document.getElementById('activation-message');
+
+    // Auto-format key as user types
+    input.addEventListener('input', (e) => {
+      let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (value.length > 0) {
+        value = `SST-${value.match(/.{1,5}/g).join('-')}`;
+      }
+      e.target.value = value.substring(0, 23);
+    });
+
+    button.addEventListener('click', async () => {
+      try {
+        const validator = new PremiumValidator();
+        await validator.setPremiumKey(input.value);
+        
+        message.textContent = '✓ Premium features activated!';
+        message.className = 'message success';
+        message.style.display = 'block';
+        
+        setTimeout(() => this.renderMainMenu(), 1500);
+      } catch (error) {
+        message.textContent = '✗ ' + error.message;
+        message.className = 'message error';
+        message.style.display = 'block';
+      }
+    });
   }
-
-  // Initialize popup when DOM is loaded
-  new PopupUI();
-}); 
+}; 

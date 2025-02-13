@@ -1,10 +1,6 @@
 {
   "name": "site-scraper-tools",
   "version": "1.0.0",
-  "dependencies": {
-    // Public dependencies only
-  },
-  "optionalDependencies": {
-    "site-scraper-premium": "git+ssh://git@github.com:your-org/site-scraper-tools-premium.git"
-  }
-} 
+  "main": "chrome-extension/scraper.js",
+  "type": "module"
+}
