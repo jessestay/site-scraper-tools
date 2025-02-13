@@ -3,19 +3,23 @@ import { SiteScraper } from '../scraper.js';
 describe('SiteScraper', () => {
   let scraper;
   
-  beforeEach(() => {
-    // Mock window and SCRAPER_CONFIG
-    global.window = {
-      SCRAPER_CONFIG: {
-        version: '1.0.4',
-        features: {
-          rateLimit: true,
-          memoryManagement: true,
-          assetCaching: true
+  beforeAll(() => {
+    // Ensure window.SCRAPER_CONFIG exists
+    if (!global.window?.SCRAPER_CONFIG) {
+      global.window = {
+        SCRAPER_CONFIG: {
+          version: '1.0.4',
+          features: {
+            rateLimit: true,
+            memoryManagement: true,
+            assetCaching: true
+          }
         }
-      }
-    };
-
+      };
+    }
+  });
+  
+  beforeEach(() => {
     // Mock chrome API
     global.chrome = {
       runtime: {
@@ -228,6 +232,8 @@ describe('Development Mode', () => {
 });
 
 describe('downloadAll with logging', () => {
+  let localScraper;
+  
   beforeEach(() => {
     // Setup dev mode
     chrome.management.getSelf.mockImplementation(cb => 
@@ -240,26 +246,26 @@ describe('downloadAll with logging', () => {
     };
     
     document.body.innerHTML = '';
+    
+    localScraper = new SiteScraper('https://example.com');
   });
 
   test('logs progress in dev mode', async () => {
-    const consoleSpy = jest.spyOn(console, 'log');
-    
-    // Add some test content
-    scraper.htmlContent.set('https://example.com', {
+    localScraper.htmlContent = new Map();
+    localScraper.htmlContent.set('https://example.com', {
       content: '<html></html>',
       title: 'Test'
     });
     
-    await scraper.downloadAll();
+    await localScraper.downloadAll();
     
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(console.log).toHaveBeenCalledWith(
       '[Scraper Debug]',
       'Start',
       expect.any(String)
     );
     
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(console.log).toHaveBeenCalledWith(
       '[Scraper Debug]',
       'Complete',
       expect.stringContaining('Total time')
@@ -267,8 +273,9 @@ describe('downloadAll with logging', () => {
   });
 
   test('tracks asset processing statistics', async () => {
-    scraper.assets.add('https://example.com/large.jpg');
-    scraper.assets.add('https://example.com/small.jpg');
+    localScraper.assets = new Set();
+    localScraper.assets.add('https://example.com/large.jpg');
+    localScraper.assets.add('https://example.com/small.jpg');
     
     // Mock one large file and one successful file
     global.fetch
@@ -281,7 +288,7 @@ describe('downloadAll with logging', () => {
         blob: () => Promise.resolve(new Blob(['.'.repeat(1024)]))
       }));
     
-    await scraper.downloadAll();
+    await localScraper.downloadAll();
     
     const statusText = document.querySelector('div').textContent;
     expect(statusText).toContain('Download complete');

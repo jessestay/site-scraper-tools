@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1739489288613" clover="3.2.0">
-  <project timestamp="1739489288613" name="All files">
+<coverage generated="1739489562944" clover="3.2.0">
+  <project timestamp="1739489562944" name="All files">
     <metrics statements="104" coveredstatements="4" conditionals="35" coveredconditionals="1" methods="14" coveredmethods="1" elements="153" coveredelements="6" complexity="0" loc="104" ncloc="104" packages="1" files="1" classes="1"/>
     <file name="scraper.js" path="/Users/jessestay/Documents/Cursor Workspaces/EdBrassLaw/site-scraper-tools/chrome-extension/scraper.js">
       <metrics statements="104" coveredstatements="4" conditionals="35" coveredconditionals="1" methods="14" coveredmethods="1"/>
