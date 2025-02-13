@@ -1,9 +1,16 @@
+import { SiteScraper } from '../scraper.js';
+
 describe('SiteScraper', () => {
   let scraper;
   
   beforeEach(() => {
-    // Mock chrome API
+    // Mock environment
     global.chrome = {
+      runtime: {
+        getManifest: () => ({ version: '1.0.0' }),
+        getURL: (path) => `chrome-extension://id/${path}`,
+        lastError: null
+      },
       tabs: {
         create: jest.fn(),
         remove: jest.fn(),
@@ -15,8 +22,8 @@ describe('SiteScraper', () => {
       scripting: {
         executeScript: jest.fn()
       },
-      runtime: {
-        sendMessage: jest.fn()
+      downloads: {
+        download: jest.fn()
       }
     };
     
@@ -26,13 +33,13 @@ describe('SiteScraper', () => {
   describe('normalizeUrl', () => {
     test('handles valid URLs', () => {
       expect(scraper.normalizeUrl('https://example.com/page')).toBe('https://example.com/page');
+      expect(scraper.normalizeUrl('//example.com/page')).toBe('https://example.com/page');
       expect(scraper.normalizeUrl('/page')).toBe('https://example.com/page');
-      expect(scraper.normalizeUrl('page')).toBe('https://example.com/page');
     });
 
     test('handles invalid URLs', () => {
-      expect(scraper.normalizeUrl('javascript:void(0)')).toBeNull();
-      expect(scraper.normalizeUrl('')).toBeNull();
+      expect(() => scraper.normalizeUrl('invalid')).toThrow();
+      expect(() => scraper.normalizeUrl('')).toThrow();
     });
   });
 
@@ -158,6 +165,11 @@ describe('SiteScraper', () => {
 
       await expect(scraper.downloadAll()).rejects.toThrow('Chrome runtime error');
     });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+    scraper.cleanup();
   });
 });
 
