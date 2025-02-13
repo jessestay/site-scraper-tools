@@ -1,6 +1,7 @@
 // Move all base scraping functionality here
 class SiteScraper {
   constructor() {
+    this.version = '1.0.1';
     this.visitedUrls = new Set();
     this.pageQueue = [];
     this.baseUrl = '';
@@ -204,4 +205,7 @@ class SiteScraper {
     await this.checkRateLimit();
     return fetch(url);
   }
-} 
+}
+
+// Make it available globally
+window.SiteScraper = SiteScraper; 
