@@ -1,7 +1,7 @@
 // Move all base scraping functionality here
 class SiteScraper {
   constructor() {
-    this.version = '1.0.4';
+    this.version = window.SCRAPER_CONFIG.version;
     this.lastUpdated = new Date().toISOString();
     this.lastSync = new Date().toISOString();
     this.visitedUrls = new Set();
@@ -17,6 +17,7 @@ class SiteScraper {
       maxRequests: 30, // per window
       windowMs: 1000 // 1 second
     };
+    console.log('Base scraper initialized with version:', this.version);
   }
 
   async scrapeSite(startUrl) {
@@ -210,4 +211,8 @@ class SiteScraper {
 }
 
 // Make it available globally
-window.SiteScraper = SiteScraper; 
+if (typeof window !== 'undefined') {
+  window.SiteScraper = SiteScraper;
+} else {
+  global.SiteScraper = SiteScraper; // For Node.js or other environments
+} 
