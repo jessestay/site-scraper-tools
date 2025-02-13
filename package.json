@@ -5,7 +5,11 @@
   "type": "module",
   "description": "A powerful web scraping tool for Chrome.",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint chrome-extension/",
+    "prepare": "husky install"
   },
   "repository": {
     "type": "git",
@@ -17,5 +21,15 @@
   "bugs": {
     "url": "https://github.com/jessestay/site-scraper-tools/issues"
   },
-  "homepage": "https://github.com/jessestay/site-scraper-tools#readme"
+  "homepage": "https://github.com/jessestay/site-scraper-tools#readme",
+  "devDependencies": {
+    "@babel/core": "^7.x",
+    "@babel/preset-env": "^7.x",
+    "babel-jest": "^29.x",
+    "eslint": "^8.x",
+    "husky": "^8.x",
+    "jest": "^29.x",
+    "jest-environment-jsdom": "^29.x",
+    "source-map-support": "^0.5.21"
+  }
 }
