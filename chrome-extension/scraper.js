@@ -3,6 +3,17 @@ console.log('scraper.js loaded');
 // Move all base scraping functionality here
 class SiteScraper {
   constructor() {
+    // Ensure SCRAPER_CONFIG exists
+    if (!window?.SCRAPER_CONFIG) {
+      window.SCRAPER_CONFIG = {
+        version: '1.0.4',
+        features: {
+          rateLimit: true,
+          memoryManagement: true,
+          assetCaching: true
+        }
+      };
+    }
     this.version = window.SCRAPER_CONFIG.version;
     this.lastUpdated = new Date().toISOString();
     this.lastSync = new Date().toISOString();

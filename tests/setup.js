@@ -14,12 +14,27 @@ global.window = {
 global.chrome = {
   runtime: {
     onMessage: {
-      addListener: jest.fn()
+      addListener: jest.fn(),
+      removeListener: jest.fn()
     },
     onSuspend: {
       addListener: jest.fn()
     },
-    sendMessage: jest.fn()
+    sendMessage: jest.fn(),
+    getManifest: () => ({ version: '1.0.0' }),
+    getURL: (path) => `chrome-extension://id/${path}`,
+    lastError: null
+  },
+  tabs: {
+    create: jest.fn(),
+    remove: jest.fn(),
+    onUpdated: {
+      addListener: jest.fn(),
+      removeListener: jest.fn()
+    }
+  },
+  scripting: {
+    executeScript: jest.fn()
   },
   downloads: {
     download: jest.fn(),
@@ -27,6 +42,9 @@ global.chrome = {
       addListener: jest.fn()
     },
     cancel: jest.fn()
+  },
+  management: {
+    getSelf: jest.fn(cb => cb({ installType: 'development' }))
   }
 };
 
@@ -45,4 +63,16 @@ global.DOMParser = class {
       querySelectorAll: () => []
     };
   }
-}; 
+};
+
+// Mock performance API
+global.performance = {
+  memory: {
+    usedJSHeapSize: 900,
+    jsHeapSizeLimit: 1000
+  },
+  now: jest.fn().mockReturnValue(0)
+};
+
+// Mock document
+document.body.innerHTML = ''; 
