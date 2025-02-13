@@ -1,3 +1,5 @@
+console.log('scraper.js loaded');
+
 // Move all base scraping functionality here
 class SiteScraper {
   constructor() {
@@ -210,7 +212,10 @@ class SiteScraper {
   }
 }
 
-// Make it available globally
+// Export the SiteScraper class
+export { SiteScraper };
+
+// Make it available globally for compatibility
 if (typeof window !== 'undefined') {
   window.SiteScraper = SiteScraper;
 } else {
