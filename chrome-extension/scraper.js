@@ -1,7 +1,9 @@
 // Move all base scraping functionality here
 class SiteScraper {
   constructor() {
-    this.version = '1.0.1';
+    this.version = '1.0.4';
+    this.lastUpdated = new Date().toISOString();
+    this.lastSync = new Date().toISOString();
     this.visitedUrls = new Set();
     this.pageQueue = [];
     this.baseUrl = '';

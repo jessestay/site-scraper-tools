@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Site Scraper",
+  "version": "1.0",
+  "description": "Scrapes websites and saves them as static HTML",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "management",
+    "storage",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [{
+    "resources": ["status.html"],
+    "matches": ["<all_urls>"]
+  }],
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["status.js"]
+  }]
+} 

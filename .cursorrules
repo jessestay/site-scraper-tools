@@ -1,0 +1,87 @@
+{
+  "rules": [
+    {
+      "name": "Require unit test for bug fixes",
+      "pattern": "fix:|fixes:|fixed:|bug:",
+      "files": {
+        "changed": ["**/*.js", "**/*.ts"],
+        "required": ["**/tests/**/*.test.js", "**/tests/**/*.test.ts"]
+      },
+      "message": "Bug fixes must include corresponding unit tests to prevent regression"
+    },
+    {
+      "name": "Test file naming convention",
+      "pattern": ".*\\.test\\.(js|ts)$",
+      "location": "tests/",
+      "message": "Test files must be placed in a tests directory and end with .test.js or .test.ts"
+    },
+    {
+      "name": "Test coverage threshold", 
+      "coverage": {
+        "statements": 80,
+        "branches": 80,
+        "functions": 80,
+        "lines": 80
+      },
+      "message": "Code changes must maintain minimum test coverage thresholds"
+    },
+    {
+      "name": "Test description format",
+      "pattern": "describe\\(['\"](.*?)['\"]",
+      "test": "^[A-Z][A-Za-z0-9_]+$",
+      "message": "Test suite descriptions should be PascalCase and clearly describe the component/function being tested"
+    },
+    {
+      "name": "Run all tests on changes",
+      "pattern": ".*\\.(js|ts)$",
+      "command": "npm test",
+      "message": "All tests must pass before committing changes"
+    },
+    {
+      "name": "Verify test execution",
+      "pattern": ".*",
+      "precommit": true,
+      "command": "git diff --name-only | grep -q '.test.' || echo 'WARNING: No test files modified. Did you forget to update tests?'"
+    },
+    {
+      "name": "Auto-sync base scraper",
+      "pattern": "chrome-extension/scraper.js",
+      "files": {
+        "changed": ["chrome-extension/scraper.js"],
+        "required": []
+      },
+      "command": "echo 'Syncing base scraper...' && mkdir -p ../site-scraper-tools-premium/chrome-extension/lib && cp chrome-extension/scraper.js ../site-scraper-tools-premium/chrome-extension/lib/base-scraper.js && cd ../site-scraper-tools-premium && git add chrome-extension/lib/base-scraper.js && git commit -m 'Update base scraper dependency: Auto-commit' && git push origin main && echo 'Sync complete'",
+      "message": "Auto-synced changes to premium repository"
+    }
+  ],
+  "hooks": {
+    "pre-commit": [
+      "npm test",
+      "npm run lint",
+      "node -e \"if(!process.env.SKIP_TEST_CHECK && !require('fs').readdirSync('.').some(f => f.includes('.test.'))) { console.error('No test files found in commit. Did you forget to add tests?'); process.exit(1); }\""
+    ],
+    "pre-push": [
+      "npm test -- --coverage",
+      "npm run lint"
+    ],
+    "post-checkout": [
+      "echo 'Remember to update tests if you modified any code!'"
+    ],
+    "post-merge": [
+      "echo 'Remember to run tests after merging!'"
+    ]
+  },
+  "test": {
+    "runner": "jest",
+    "failFast": true,
+    "verbose": true,
+    "collectCoverage": true,
+    "notify": true,
+    "bail": 1,
+    "testMatch": ["**/*.test.js", "**/*.test.ts"],
+    "watchPlugins": [
+      "jest-watch-typeahead/filename",
+      "jest-watch-typeahead/testname"
+    ]
+  }
+} 

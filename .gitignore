@@ -1,15 +1,5 @@
-# Development configuration
-chrome-extension/config/dev.config.js
-chrome-extension/config/*.local.js
-
-# Premium features
-chrome-extension/premium-features/
 node_modules/
-.env
 .DS_Store
 *.log
-
-# Allow cache directories but ignore contents
-!.cache/
-.cache/*
-!.cache/.gitkeep 
+dist/
+.cache/
