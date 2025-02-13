@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      width: 300px;
+      padding: 10px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    button {
+      margin: 5px;
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #f0f0f0;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #e0e0e0;
+    }
+    #status {
+      margin-top: 10px;
+      color: #666;
+    }
+    #progress {
+      margin-top: 5px;
+      font-size: 0.9em;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <button id="scrapeButton">Scrape Current Site</button>
+  <button id="stopButton" class="hidden">Stop Scraping</button>
+  <div id="status"></div>
+  <div id="progress"></div>
+  <script src="popup.js"></script>
+</body>
+</html> 
