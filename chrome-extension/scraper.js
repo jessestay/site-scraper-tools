@@ -49,6 +49,12 @@ class SiteScraper {
   normalizeUrl(url) {
     try {
       if (!url) throw new Error('URL cannot be empty');
+      
+      // Handle case where baseUrl isn't set yet
+      if (!this.baseUrl && url.startsWith('/')) {
+        throw new Error('Cannot normalize relative URL without baseUrl');
+      }
+      
       if (url.startsWith('//')) url = 'https:' + url;
       if (url.startsWith('/')) url = this.baseUrl + url;
       return new URL(url).toString();
@@ -98,15 +104,24 @@ class SiteScraper {
     };
 
     for (const [selector, attr] of Object.entries(assetSelectors)) {
-      const elements = doc.querySelectorAll(selector);
-      elements.forEach(el => {
+      const elements = Array.from(doc.querySelectorAll(selector));
+      for (const el of elements) {
         try {
-          const assetUrl = this.normalizeUrl(el.getAttribute(attr));
+          const rawUrl = el.getAttribute(attr);
+          if (!rawUrl) continue;
+          
+          // Handle relative URLs
+          const fullUrl = rawUrl.startsWith('/') || rawUrl.startsWith('http') 
+            ? rawUrl 
+            : `${baseUrl}/${rawUrl}`;
+            
+          const assetUrl = this.normalizeUrl(fullUrl);
           this.assets.add(assetUrl);
         } catch (error) {
-          console.warn(`Invalid asset URL: ${el.getAttribute(attr)}`);
+          // Use console.warn instead of devLog since this isn't async
+          console.warn(`Invalid asset URL: ${el.getAttribute(attr)}`, error.message);
         }
-      });
+      }
     }
   }
 
@@ -188,7 +203,7 @@ class SiteScraper {
           const doc = new DOMParser().parseFromString(html, 'text/html');
           await this.findAssets(doc, this.baseUrl);
           
-          const links = doc.querySelectorAll('a[href]');
+          const links = Array.from(doc.querySelectorAll('a[href]'));
           for (const link of links) {
             try {
               const href = new URL(link.href, url).toString();
@@ -321,10 +336,14 @@ class SiteScraper {
     this.timeouts.forEach(id => clearTimeout(id));
     this.timeouts.clear();
     
-    // Remove tabs
-    await Promise.all(Array.from(this.openTabs).map(tabId => 
-      chrome.tabs.remove(tabId).catch(() => {})
-    ));
+    // Remove tabs - handle case where chrome.tabs.remove returns undefined
+    for (const tabId of this.openTabs) {
+      try {
+        await chrome.tabs.remove(tabId);
+      } catch (error) {
+        await this.devLog(`Failed to remove tab ${tabId}:`, error);
+      }
+    }
     this.openTabs.clear();
   }
 
