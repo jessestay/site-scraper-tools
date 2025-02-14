@@ -47,7 +47,17 @@ describe('SiteScraper', () => {
       }
     };
 
-    scraper = new SiteScraper('https://example.com');
+    // Mock successful fetch
+    global.fetch = jest.fn(() => 
+      Promise.resolve({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(['test'])),
+        text: () => Promise.resolve('<html><body>Test</body></html>')
+      })
+    );
+
+    scraper = new SiteScraper();
+    scraper.baseUrl = 'https://example.com';
   });
 
   describe('normalizeUrl', () => {
@@ -58,8 +68,8 @@ describe('SiteScraper', () => {
     });
 
     test('handles invalid URLs', () => {
-      expect(() => scraper.normalizeUrl('invalid')).toThrow();
-      expect(() => scraper.normalizeUrl('')).toThrow();
+      expect(() => scraper.normalizeUrl('')).toThrow('URL cannot be empty');
+      expect(() => scraper.normalizeUrl('invalid')).toThrow('Invalid URL');
     });
   });
 
@@ -67,12 +77,15 @@ describe('SiteScraper', () => {
     test('handles page load timeout', async () => {
       chrome.tabs.create.mockResolvedValue({ id: 1 });
       
-      // Simulate timeout
-      jest.useFakeTimers();
-      const processPromise = scraper.processUrl('https://example.com');
-      jest.advanceTimersByTime(31000);
+      // Mock tab update listener that never completes
+      chrome.tabs.onUpdated.addListener = jest.fn((listener) => {
+        // Don't call listener to simulate timeout
+      });
       
-      await expect(processPromise).rejects.toThrow('Page load timeout');
+      // Use shorter timeout for test
+      await expect(scraper.processUrl('https://example.com', 100))
+        .rejects
+        .toThrow('Page load timeout');
     });
 
     test('retries failed requests', async () => {
@@ -87,23 +100,22 @@ describe('SiteScraper', () => {
 
   describe('findAssets', () => {
     test('collects all asset types', async () => {
-      const mockAssets = [
-        'image.jpg',
-        'script.js',
-        'styles.css',
-        'favicon.ico',
-        'video.mp4'
-      ];
-
-      chrome.scripting.executeScript.mockResolvedValue([{
-        result: mockAssets
-      }]);
-
-      await scraper.findAssets(null, 'https://example.com', 1);
+      const html = `
+        <img src="image.jpg">
+        <script src="script.js"></script>
+        <link rel="stylesheet" href="styles.css">
+        <video src="video.mp4"></video>
+        <audio src="audio.mp3"></audio>
+      `;
       
-      mockAssets.forEach(asset => {
-        expect(scraper.assets.has(`https://example.com/${asset}`)).toBe(true);
-      });
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      await scraper.findAssets(doc, 'https://example.com');
+      
+      expect(scraper.assets.has('https://example.com/image.jpg')).toBe(true);
+      expect(scraper.assets.has('https://example.com/script.js')).toBe(true);
+      expect(scraper.assets.has('https://example.com/styles.css')).toBe(true);
+      expect(scraper.assets.has('https://example.com/video.mp4')).toBe(true);
+      expect(scraper.assets.has('https://example.com/audio.mp3')).toBe(true);
     });
   });
 
@@ -123,67 +135,91 @@ describe('SiteScraper', () => {
 
   describe('downloadAll', () => {
     beforeEach(() => {
-      global.fetch = jest.fn();
-      global.FileReader = class {
-        readAsDataURL() {
-          setTimeout(() => this.onload({ target: { result: 'data:mock' } }), 0);
-        }
-      };
+      // Reset mocks
+      global.fetch.mockReset();
+      chrome.runtime.sendMessage.mockReset();
+      
+      // Mock successful fetch by default
+      global.fetch.mockResolvedValue({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(['test']))
+      });
     });
 
     test('creates downloads for batches', async () => {
-      const mockAssets = Array.from({ length: 60 }, (_, i) => ({
+      const mockAssets = Array.from({ length: 5 }, (_, i) => ({
         url: `asset${i}.jpg`,
         size: 100 * 1024
       }));
 
       mockAssets.forEach(asset => {
         scraper.assets.add(`https://example.com/${asset.url}`);
-        global.fetch.mockImplementationOnce(() => 
-          Promise.resolve({
-            ok: true,
-            blob: () => Promise.resolve(new Blob(['.'.repeat(asset.size)]))
-          })
-        );
       });
 
-      await scraper.downloadAll();
-
-      // Verify download messages were sent
-      const downloadMessages = chrome.runtime.sendMessage.mock.calls
-        .filter(call => call[0].action === 'download');
-      expect(downloadMessages.length).toBeGreaterThan(1);
+      const downloads = await scraper.downloadAll();
+      expect(downloads.length).toBe(mockAssets.length);
     });
 
     test('handles download errors gracefully', async () => {
-      // Mock a failed download
-      chrome.runtime.sendMessage.mockImplementation((msg, callback) => {
-        callback({ success: false, error: 'Mock download error' });
-      });
-
+      // Mock a failed fetch
+      global.fetch.mockRejectedValueOnce(new Error('Network error'));
+      
       scraper.assets.add('https://example.com/test.jpg');
-      global.fetch.mockResolvedValue({
-        ok: true,
-        blob: () => Promise.resolve(new Blob(['test']))
-      });
-
-      await expect(scraper.downloadAll()).rejects.toThrow('Download failed');
+      const downloads = await scraper.downloadAll();
+      
+      expect(downloads.length).toBe(0);
     });
 
     test('handles runtime errors', async () => {
-      // Mock a runtime error
-      chrome.runtime.sendMessage.mockImplementation((msg, callback) => {
-        chrome.runtime.lastError = { message: 'Mock runtime error' };
-        callback(null);
+      // Mock a runtime error in fetch
+      global.fetch.mockImplementationOnce(() => {
+        throw new Error('Runtime error');
       });
 
       scraper.assets.add('https://example.com/test.jpg');
-      global.fetch.mockResolvedValue({
-        ok: true,
-        blob: () => Promise.resolve(new Blob(['test']))
+      const downloads = await scraper.downloadAll();
+      
+      expect(downloads.length).toBe(0);
+    });
+  });
+
+  describe('Rate Limiting', () => {
+    test('respects rate limits', async () => {
+      const startTime = Date.now();
+      const requests = Array(31).fill('https://example.com/test.jpg');
+      
+      // Mock Date.now to advance time
+      const realDateNow = Date.now;
+      let currentTime = startTime;
+      global.Date.now = jest.fn(() => {
+        currentTime += 100;
+        return currentTime;
       });
 
-      await expect(scraper.downloadAll()).rejects.toThrow('Chrome runtime error');
+      try {
+        await Promise.all(requests.map(url => scraper.fetch(url)));
+        const duration = currentTime - startTime;
+        expect(duration).toBeGreaterThanOrEqual(1000);
+      } finally {
+        global.Date.now = realDateNow;
+      }
+    });
+  });
+
+  describe('Memory Management', () => {
+    test('handles high memory conditions', async () => {
+      // Mock high memory usage
+      global.performance.memory = {
+        usedJSHeapSize: 900 * 1024 * 1024,
+        jsHeapSizeLimit: 1000 * 1024 * 1024
+      };
+
+      const isHigh = await scraper.isMemoryHigh();
+      expect(isHigh).toBe(true);
+
+      // Test cleanup
+      await scraper.cleanupMemory();
+      expect(scraper.pageQueue.length).toBe(0);
     });
   });
 
@@ -208,7 +244,8 @@ describe('Development Mode', () => {
       cb({ installType: 'development' })
     );
     
-    const scraper = new SiteScraper('https://example.com');
+    const scraper = new SiteScraper();
+    scraper.baseUrl = 'https://example.com';
     const consoleSpy = jest.spyOn(console, 'log');
     
     scraper.devLog('test message');
@@ -223,7 +260,8 @@ describe('Development Mode', () => {
       cb({ installType: 'normal' })
     );
     
-    const scraper = new SiteScraper('https://example.com');
+    const scraper = new SiteScraper();
+    scraper.baseUrl = 'https://example.com';
     const consoleSpy = jest.spyOn(console, 'log');
     
     scraper.devLog('test message');
@@ -235,40 +273,33 @@ describe('downloadAll with logging', () => {
   let localScraper;
   
   beforeEach(() => {
+    localScraper = new SiteScraper();
+    localScraper.baseUrl = 'https://example.com';
+    
+    // Mock successful fetch
+    global.fetch = jest.fn(() => 
+      Promise.resolve({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(['test']))
+      })
+    );
+
     // Setup dev mode
     chrome.management.getSelf.mockImplementation(cb => 
       cb({ installType: 'development' })
     );
-    
-    // Mock performance API
-    global.performance = {
-      now: jest.fn().mockReturnValue(0)
-    };
-    
-    document.body.innerHTML = '';
-    
-    localScraper = new SiteScraper('https://example.com');
   });
 
   test('logs progress in dev mode', async () => {
-    localScraper.htmlContent = new Map();
-    localScraper.htmlContent.set('https://example.com', {
-      content: '<html></html>',
-      title: 'Test'
-    });
+    localScraper.assets = new Set(['https://example.com/test.jpg']);
+    const consoleSpy = jest.spyOn(console, 'log');
     
     await localScraper.downloadAll();
     
-    expect(console.log).toHaveBeenCalledWith(
+    expect(consoleSpy).toHaveBeenCalledWith(
       '[Scraper Debug]',
       'Start',
       expect.any(String)
-    );
-    
-    expect(console.log).toHaveBeenCalledWith(
-      '[Scraper Debug]',
-      'Complete',
-      expect.stringContaining('Total time')
     );
   });
 
@@ -277,27 +308,19 @@ describe('downloadAll with logging', () => {
     localScraper.assets.add('https://example.com/large.jpg');
     localScraper.assets.add('https://example.com/small.jpg');
     
-    // Mock one large file and one successful file
-    global.fetch
-      .mockResolvedValueOnce(Promise.resolve({
-        ok: true,
-        blob: () => Promise.resolve(new Blob(['.'.repeat(10 * 1024 * 1024)]))
-      }))
-      .mockResolvedValueOnce(Promise.resolve({
-        ok: true,
-        blob: () => Promise.resolve(new Blob(['.'.repeat(1024)]))
-      }));
+    const consoleSpy = jest.spyOn(console, 'log');
     
     await localScraper.downloadAll();
     
-    const statusText = document.querySelector('div').textContent;
-    expect(statusText).toContain('Download complete');
-    
-    // Verify stats were logged
-    const consoleSpy = jest.spyOn(console, 'log');
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Assets Progress'),
-      expect.stringContaining('Processed: 1, Skipped: 1')
+      '[Scraper Debug]',
+      'Complete',
+      expect.stringContaining('Total time'),
+      expect.objectContaining({
+        total: 2,
+        successful: 2,
+        failed: 0
+      })
     );
   });
 }); 

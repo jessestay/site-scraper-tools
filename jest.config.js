@@ -1,13 +1,17 @@
 export default {
   testEnvironment: 'jsdom',
   transform: {
-    '^.+\\.js$': ['babel-jest', { rootMode: 'upward' }]
+    '^.+\\.js$': 'babel-jest'
   },
   moduleNameMapper: {
     '^chrome-extension/(.*)$': '<rootDir>/chrome-extension/$1'
   },
   moduleDirectories: ['node_modules', '<rootDir>'],
   setupFiles: ['./tests/setup.js'],
+  setupFilesAfterEnv: ['./tests/setup.js'],
+  testEnvironmentOptions: {
+    url: 'http://localhost/'
+  },
   collectCoverage: true,
   coverageThreshold: {
     global: {

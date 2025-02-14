@@ -48,19 +48,26 @@ global.chrome = {
   }
 };
 
-// Mock fetch
-global.fetch = jest.fn(() => 
-  Promise.resolve({
+// Mock fetch with more realistic behavior
+global.fetch = jest.fn((url) => {
+  if (url.includes('error')) {
+    return Promise.reject(new Error('Network error'));
+  }
+  return Promise.resolve({
     ok: true,
+    status: 200,
+    blob: () => Promise.resolve(new Blob(['test'])),
     text: () => Promise.resolve('<html><body>Test</body></html>')
-  })
-);
+  });
+});
 
 // Mock DOMParser
 global.DOMParser = class {
   parseFromString(str) {
+    const div = document.createElement('div');
+    div.innerHTML = str;
     return {
-      querySelectorAll: () => []
+      querySelectorAll: (selector) => div.querySelectorAll(selector)
     };
   }
 };
