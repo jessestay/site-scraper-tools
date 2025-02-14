@@ -232,39 +232,38 @@ describe('SiteScraper', () => {
 });
 
 describe('Development Mode', () => {
+  let consoleSpy;
+  
   beforeEach(() => {
-    // Mock chrome.management API
-    global.chrome.management = {
-      getSelf: jest.fn()
-    };
+    consoleSpy = jest.spyOn(console, 'log').mockImplementation();
   });
 
-  test('enables dev logging in development mode', () => {
+  afterEach(() => {
+    consoleSpy.mockRestore();
+  });
+
+  test('enables dev logging in development mode', async () => {
     chrome.management.getSelf.mockImplementation(cb => 
       cb({ installType: 'development' })
     );
     
     const scraper = new SiteScraper();
-    scraper.baseUrl = 'https://example.com';
-    const consoleSpy = jest.spyOn(console, 'log');
+    await scraper.devLog('test message');
     
-    scraper.devLog('test message');
     expect(consoleSpy).toHaveBeenCalledWith(
       '[Scraper Debug]',
       'test message'
     );
   });
 
-  test('disables dev logging in production mode', () => {
+  test('disables dev logging in production mode', async () => {
     chrome.management.getSelf.mockImplementation(cb => 
       cb({ installType: 'normal' })
     );
     
     const scraper = new SiteScraper();
-    scraper.baseUrl = 'https://example.com';
-    const consoleSpy = jest.spyOn(console, 'log');
+    await scraper.devLog('test message');
     
-    scraper.devLog('test message');
     expect(consoleSpy).not.toHaveBeenCalled();
   });
 });

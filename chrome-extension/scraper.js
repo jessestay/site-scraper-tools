@@ -48,18 +48,24 @@ class SiteScraper {
 
   normalizeUrl(url) {
     try {
-      if (!url) throw new Error('URL cannot be empty');
+      if (!url || url.trim() === '') {
+        throw new Error('URL cannot be empty');
+      }
       
       // Handle case where baseUrl isn't set yet
       if (!this.baseUrl && url.startsWith('/')) {
         throw new Error('Cannot normalize relative URL without baseUrl');
       }
       
-      if (url.startsWith('//')) url = 'https:' + url;
-      if (url.startsWith('/')) url = this.baseUrl + url;
-      return new URL(url).toString();
+      try {
+        if (url.startsWith('//')) url = 'https:' + url;
+        if (url.startsWith('/')) url = this.baseUrl + url;
+        return new URL(url).toString();
+      } catch (error) {
+        throw new Error('Invalid URL');
+      }
     } catch (error) {
-      throw new Error(`Invalid URL: ${url}`);
+      throw error; // Re-throw the original error
     }
   }
 

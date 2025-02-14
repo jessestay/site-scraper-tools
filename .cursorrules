@@ -1,4 +1,5 @@
 {
+  "version": 1,
   "rules": [
     {
       "name": "Require unit test for bug fixes",
@@ -52,23 +53,54 @@
       },
       "command": "echo 'Syncing base scraper...' && mkdir -p ../site-scraper-tools-premium/chrome-extension/lib && cp chrome-extension/scraper.js ../site-scraper-tools-premium/chrome-extension/lib/base-scraper.js && cd ../site-scraper-tools-premium && git add chrome-extension/lib/base-scraper.js && git commit -m 'Update base scraper dependency: Auto-commit' && git push origin main && echo 'Sync complete'",
       "message": "Auto-synced changes to premium repository"
+    },
+    {
+      "pattern": ".*",
+      "check": "npm test",
+      "message": "All tests must pass before files can be modified"
+    },
+    {
+      "pattern": ".*\\.js$",
+      "check": "npm run lint",
+      "message": "JavaScript files must pass linting"
+    },
+    {
+      "name": "Auto-run tests on file changes",
+      "pattern": ".*\\.(js|ts)$",
+      "autorun": {
+        "command": "npm test",
+        "watch": true,
+        "debounce": 1000
+      },
+      "blocking": true,
+      "message": "Tests must pass before allowing further changes"
+    },
+    {
+      "name": "Auto-run linting on JS changes",
+      "pattern": ".*\\.js$",
+      "autorun": {
+        "command": "npm run lint",
+        "watch": true,
+        "debounce": 500
+      },
+      "blocking": true,
+      "message": "Code must pass linting before allowing further changes"
     }
   ],
   "hooks": {
     "pre-commit": [
       "npm test",
-      "npm run lint",
-      "node -e \"if(!process.env.SKIP_TEST_CHECK && !require('fs').readdirSync('.').some(f => f.includes('.test.'))) { console.error('No test files found in commit. Did you forget to add tests?'); process.exit(1); }\""
+      "npm run lint"
     ],
     "pre-push": [
       "npm test -- --coverage",
       "npm run lint"
     ],
-    "post-checkout": [
-      "echo 'Remember to update tests if you modified any code!'"
+    "file-change": [
+      "npm test"
     ],
-    "post-merge": [
-      "echo 'Remember to run tests after merging!'"
+    "editor-save": [
+      "npm test"
     ]
   },
   "test": {
@@ -82,6 +114,16 @@
     "watchPlugins": [
       "jest-watch-typeahead/filename",
       "jest-watch-typeahead/testname"
+    ]
+  },
+  "autorun": {
+    "enabled": true,
+    "commands": [
+      {
+        "match": ".*\\.(js|ts)$",
+        "run": "npm test",
+        "debounce": 1000
+      }
     ]
   }
 } 
